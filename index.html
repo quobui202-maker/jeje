@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>E01SEC Device Info</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; background: #0f172a; color: #f8fafc; }
+  .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+  .btn { background: linear-gradient(135deg, #3b82f6, #2563eb); transition: all 0.2s ease; }
+  .btn:active { transform: scale(0.96); }
+  .hidden { display: none !important; }
+  .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; }
+  .info-label { color: #94a3b8; }
+  .info-value { font-weight: 600; color: #e2e8f0; word-break: break-all; text-align: right; max-width: 65%; }
+</style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+  <div class="glass w-full max-w w-md rounded-2xl p-6 shadow-2xl relative-full overflow py--hidden">
+    
+   4 <!-- TRẠNG THÁI 1: CHƯA CÀI ĐẶT -->
+    <div id="step-install">
+      <div class="text-center">
+        <div class="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+        </div>
+        <h1 class="text-xl font-bold mb-2">Xác Thực Thiết Bị</h1>
+        <p class="text-slate-400 text-sm mb-6">Tải Profile để lấy thông tin phần cứng và UDID. Yêu cầu sử dụng Safari.</p>
+        
+        <button id="btnDownload" class="btn rounded-xl font-bold text-lg text-white shadow-lg">
+          TẢI PROFILE & LẤY INFO
+        </button>
+      </div>
+    </div>
+
+    <!-- TRẠNG THÁI 2: ĐANG CHỜ (LOADING) -->
+    <div id="step-loading" class="hidden text-center py-10">
+      <svg class="w-12 h-12 text-blue-500 mx-auto mb-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+      <h2 class="text-lg font-bold mb-1">Đang trích xuất...</h2>
+      <p class="text-slate-400 text-xs">Vui lòng chờ trong giây lát.</p>
+    </div>
+
+    <!-- TRẠNG THÁI 3: HIỂN THỊ THÔNG TIN THÀNH CÔNG -->
+    <div id="step-result" class="hidden">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+          <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+        </div>
+        <h2 class="text-xl font-bold text-white">Lấy Dữ Liệu Thành Công</h2>
+      </div>
+
+      <div class="bg-slate-900/50 rounded-lg p-4 mb-4 border border-slate-700">
+        <div class="info-row"><span class="info-label">UDID</span> <span class="info-value" id="val-udid">Đang lấy...</span></div>
+        <div class="info-row"><span class="info-label">Thiết bị</span> <span class="info-value" id="val-product">Đang lấy...</span></div>
+        <div class="info-row"><span class="info-label">Phiên bản iOS</span> <span class="info-value" id="val-version">Đang lấy...</span></div>
+        <div class="info-row"><span class="info-label">Serial</span> <span class="info-value" id="val-serial">Đang lấy...</span></div>
+        <div class="info-row"><span class="info-label">IMEI</span> <span class="info-value" id="val-imei">Đang lấy...</span></div>
+        <div class="info-row"><span class="info-label">MAC Wi-Fi</span> <span class="info-value" id="val-mac">Đang lấy...</span></div>
+      </div>
+
+      <button onclick="copyAllInfo()" class="btn w-full py-3 rounded-xl font-bold text-sm text-white">
+        COPY TOÀN BỘ THÔNG TIN
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    // Lấy link hiện tại để làm điểm trả về
+    const currentUrl = window.location.origin + window.location.pathname;
+
+    // 1. Hàm tạo file Profile cấu hình (Mobileconfig)
+    function generateProfile() {
+      // Giao thức MDM này sẽ lấy rất nhiều thông tin
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <dict>
+        <key>URL</key>
+        <string>${currentUrl}</string>
+        <key>DeviceAttributes</key>
+        <array>
+            <string>UDID</string>
+            <string>IMEI</string>
+            <string>ICCID</string>
+            <string>VERSION</string>
+            <string>PRODUCT</string>
+            <string>SERIAL</string>
+            <string>MAC_ADDRESS_EN0</string>
+        </array>
+        <key>PayloadType</key>
+        <string>Profile Service</string>
+        <key>PayloadIdentifier</key>
+        <string>com.e01sec.mdm.profile</string>
+        <key>PayloadUUID</key>
+        <string>E01SEC-1234-5678-90AB-UDID0000001</string>
+        <key>PayloadVersion</key>
+        <integer>1</integer>
+    </dict>
+    <key>PayloadDisplayName</key>
+    <string>E01SEC Device Info</string>
+    <key>PayloadIdentifier</key>
+    <string>com.e01sec.profile</string>
+    <key>PayloadOrganization</key>
+    <string>E01SEC Workshop</string>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadUUID</key>
+    <string>E01SEC-1234-5678-90AB-UDID0000000</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+</dict>
+</plist>`;
+    }
+
+    // 2. Hàm kích hoạt tải file
+    document.getElementById('btnDownload').addEventListener('click', () => {
+      // Cảnh báo nếu chạy trên localhost
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        alert("LỖI: Trang web phải chạy trên tên miền HTTPS thật (VD: Github Pages, Netlify). Localhost sẽ bị iOS chặn.");
+        return;
+      }
+
+      document.getElementById('step-install').classList.add('hidden');
+      document.getElementById('step-loading').classList.remove('hidden');
+
+      const xml = generateProfile();
+      const blob = new Blob([xml], { type: 'application/x-apple-aspen-config' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'device_info.mobileconfig';
+      document.body.appendChild(a);
+      a.click();
+      
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        alert("Đã tải file cấu hình!\nHãy vào: Cài đặt > Cài đặt chung > VPN & Quản lý thiết bị > Cài đặt Profile.\n\nSau khi cài xong, máy sẽ tự động quay lại trang này.");
+        document.getElementById('step-loading').classList.add('hidden');
+        document.getElementById('step-install').classList.remove('hidden');
+      }, 1000);
+    });
+
+    // 3. Hàm kiểm tra xem iOS có trả dữ liệu về không (Khi cài Profile xong)
+    function checkDeviceData() {
+      // iOS sẽ gửi dữ liệu qua URL dưới dạng POST (không phải GET)
+      // Nếu dùng GitHub Pages (tĩnh), nó sẽ không nhận được POST.
+      // Tuy nhiên, nếu He dùng thẻ <form> ẩn hoặc kiểm tra qua URLSearchParams thì có thể bắt được.
+      const urlParams = new URLSearchParams(window.location.search);
+      
+      // Lấy dữ liệu từ URL nếu có
+      const udid = urlParams.get('udid') || urlParams.get('UDID');
+      const product = urlParams.get('PRODUCT');
+      const version = urlParams.get('VERSION');
+      const serial = urlParams.get('SERIAL');
+      const imei = urlParams.get('IMEI');
+      const mac = urlParams.get('MAC_ADDRESS_EN0');
+
+      if (udid) {
+        document.getElementById('step-install').classList.add('hidden');
+        document.getElementById('step-loading').classList.add('hidden');
+        document.getElementById('step-result').classList.remove('hidden');
+
+        document.getElementById('val-udid').innerText = udid;
+        document.getElementById('val-product').innerText = product || 'N/A';
+        document.getElementById('val-version').innerText = version || 'N/A';
+        document.getElementById('val-serial').innerText = serial || 'N/A';
+        document.getElementById('val-imei').innerText = imei || 'N/A';
+        document.getElementById('val-mac').innerText = mac || 'N/A';
+      }
+    }
+
+    // Chạy kiểm tra khi tải trang
+    window.onload = checkDeviceData;
+
+    // Hàm copy toàn bộ thông tin
+    function copyAllInfo() {
+      const text = `
+UDID: ${document.getElementById('val-udid').innerText}
+Device: ${document.getElementById('val-product').innerText}
+iOS: ${document.getElementById('val-version').innerText}
+Serial: ${document.getElementById('val-serial').innerText}
+IMEI: ${document.getElementById('val-imei').innerText}
+MAC: ${document.getElementById('val-mac').innerText}
+      `.trim();
+      
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Đã copy toàn bộ thông tin thiết bị!");
+      });
+    }
+  </script>
+</body>
+</html>
